@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Стиралка v2.0 — GitHub Edition</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --accent: #38bdf8;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 15px; max-width: 500px; margin: 0 auto; }
+
+    h1, h2 { text-align: center; margin-bottom: 15px; color: var(--accent); }
+    .card { background: var(--card-bg); border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 1px solid #334155; }
+
+    /* Табы */
+    .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+    .tab-btn { flex: 1; padding: 10px; border: none; background: #334155; color: #fff; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    .tab-btn.active { background: var(--accent); color: #000; }
+
+    /* Формы и кнопки */
+    input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 16px; }
+    button.btn-main { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; font-weight: bold; color: #0f172a; font-size: 16px; cursor: pointer; }
+    button.btn-danger { width: 100%; padding: 12px; background: var(--danger); border: none; border-radius: 8px; font-weight: bold; color: #fff; font-size: 16px; cursor: pointer; margin-top: 10px; }
+
+    /* Машинки */
+    .washers-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+    .washer-card { background: #0f172a; border-radius: 8px; padding: 10px; text-align: center; border: 2px solid #334155; }
+    .washer-card.free { border-color: var(--success); }
+    .washer-card.busy { border-color: var(--danger); }
+    .washer-card.out_of_order { border-color: var(--warning); opacity: 0.6; }
+
+    /* Очередь */
+    .queue-list { list-style: none; }
+    .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #0f172a; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid var(--accent); }
+
+    /* Билет */
+    .ticket-box { text-align: center; padding: 20px 10px; }
+    .ticket-number { font-size: 48px; font-weight: bold; color: var(--accent); margin: 10px 0; }
+    .status-badge { display: inline-block; padding: 6px 12px; border-radius: 20px; font-weight: bold; margin-bottom: 10px; }
+    .status-waiting { background: var(--warning); color: #000; }
+    .status-ready { background: var(--success); color: #fff; animation: pulse 1.5s infinite; }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Админка */
+    .admin-controls { display: flex; gap: 5px; margin-top: 5px; }
+    .admin-controls button { flex: 1; padding: 6px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <h1>🧺 Стиралка v2.0</h1>
+
+  <!-- Табы -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('user')">Студент</button>
+    <button class="tab-btn" onclick="switchTab('admin')">Админ</button>
+  </div>
+
+  <!-- Статус машинок -->
+  <div class="card">
+    <h2>Состояние машинок</h2>
+    <div class="washers-grid" id="washers-container"></div>
+  </div>
+
+  <!-- ЭКРАН СТУДЕНТА -->
+  <div id="tab-user" class="tab-content active">
+    
+    <!-- Форма записи -->
+    <div class="card" id="form-section">
+      <h2>Записаться в очередь</h2>
+      <form id="queue-form">
+        <input type="text" id="student-name" placeholder="Ваше Имя и Фамилия" required>
+        <input type="text" id="student-id" placeholder="Номер комнаты / Студенческий" required>
+        <button type="submit" class="btn-main">Встать в очередь</button>
+      </form>
+    </div>
+
+    <!-- Билет в очереди -->
+    <div class="card" id="ticket-section" style="display: none;">
+      <div class="ticket-box">
+        <div id="status-badge" class="status-badge status-waiting">Ожидание очереди</div>
+        <p>Ваша позиция в очереди:</p>
+        <div class="ticket-number" id="my-position">#-</div>
+        <p><strong id="my-name-display">---</strong></p>
+        <button onclick="leaveQueue()" class="btn-danger">Покинуть очередь</button>
+      </div>
+    </div>
+
+    <!-- Общая очередь -->
+    <div class="card">
+      <h2>Общая живая очередь</h2>
+      <ul class="queue-list" id="queue-container"></ul>
+    </div>
+  </div>
+
+  <!-- ЭКРАН АДМИНА -->
+  <div id="tab-admin" class="tab-content">
+    <div class="card">
+      <h2>Управление машинками</h2>
+      <div id="admin-washers-container"></div>
+    </div>
+    <div class="card">
+      <h2>Сброс очереди</h2>
+      <button onclick="clearAllQueue()" class="btn-danger">Очистить всю очередь</button>
+    </div>
+  </div>
+
+  <script>
+    // --- ИНИЦИАЛИЗАЦИЯ И ХРАНИЛИЩЕ LOCALSTORAGE ---
+    const DEFAULT_WASHERS = [
+      { id: 1, status: 'free' },
+      { id: 2, status: 'free' },
+      { id: 3, status: 'free' }
+    ];
+
+    function getWashers() {
+      return JSON.parse(localStorage.getItem('gh_washers')) || DEFAULT_WASHERS;
+    }
+
+    function saveWashers(washers) {
+      localStorage.setItem('gh_washers', JSON.stringify(washers));
+      render();
+    }
+
+    function getQueue() {
+      return JSON.parse(localStorage.getItem('gh_queue')) || [];
+    }
+
+    function saveQueue(queue) {
+      localStorage.setItem('gh_queue', JSON.stringify(queue));
+      render();
+    }
+
+    let myTicketId = localStorage.getItem('gh_my_ticket_id') || null;
+
+    // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      if (tab === 'user') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('tab-user').classList.add('active');
+      } else {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('tab-admin').classList.add('active');
+      }
+    }
+
+    // --- ОТРЕСОВКА ИНТЕРФЕЙСА ---
+    function render() {
+      const washers = getWashers();
+      const queue = getQueue();
+
+      // 1. Отображение машинок для пользователя и админа
+      const userWashersC = document.getElementById('washers-container');
+      const adminWashersC = document.getElementById('admin-washers-container');
+      userWashersC.innerHTML = '';
+      adminWashersC.innerHTML = '';
+
+      washers.forEach(w => {
+        const isBusy = w.status === 'busy';
+        const isOff = w.status === 'out_of_order';
+        const stText = isBusy ? 'Занята' : (isOff ? 'Ремонт' : 'Свободна');
+
+        userWashersC.innerHTML += `
+          <div class="washer-card ${w.status}">
+            <strong>№${w.id}</strong>
+            <div style="font-size:11px; margin-top:4px;">${stText}</div>
+          </div>`;
+
+        adminWashersC.innerHTML += `
+          <div style="margin-bottom:10px; background:#0f172a; padding:10px; border-radius:6px;">
+            <strong>Машинка №${w.id}</strong> — ${stText}
+            <div class="admin-controls">
+              <button style="background:var(--success); color:#fff;" onclick="setWasherStatus(${w.id}, 'free')">Свободна</button>
+              <button style="background:var(--danger); color:#fff;" onclick="setWasherStatus(${w.id}, 'busy')">Занята</button>
+              <button style="background:var(--warning); color:#000;" onclick="setWasherStatus(${w.id}, 'out_of_order')">Ремонт</button>
+            </div>
+          </div>`;
+      });
+
+      // 2. Отображение списка общей очереди
+      const queueC = document.getElementById('queue-container');
+      queueC.innerHTML = '';
+
+      if (queue.length === 0) {
+        queueC.innerHTML = '<li style="text-align:center; color:#94a3b8; padding:10px;">Очередь пуста</li>';
+      }
+
+      let myPos = -1;
+      queue.forEach((item, idx) => {
+        if (myTicketId && item.id === myTicketId) {
+          myPos = idx + 1;
+          document.getElementById('my-name-display').innerText = item.name;
+        }
+
+        queueC.innerHTML += `
+          <li class="queue-item">
+            <div>
+              <strong style="color:var(--accent);">#${idx + 1}</strong> 
+              <span>${item.name}</span> 
+              <small>(${item.studentId})</small>
+            </div>
+            <button onclick="adminRemoveFromQueue('${item.id}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">❌</button>
+          </li>`;
+      });
+
+      // 3. Переключение между формой и персональным билетом
+      if (myPos !== -1) {
+        document.getElementById('form-section').style.display = 'none';
+        document.getElementById('ticket-section').style.display = 'block';
+        document.getElementById('my-position').innerText = `#${myPos}`;
+
+        const badge = document.getElementById('status-badge');
+        if (myPos === 1) {
+          badge.innerText = 'ВАША ОЧЕРЕДЬ! Заходите';
+          badge.className = 'status-badge status-ready';
+        } else {
+          badge.innerText = 'Ожидание очереди';
+          badge.className = 'status-badge status-waiting';
+        }
+      } else {
+        document.getElementById('form-section').style.display = 'block';
+        document.getElementById('ticket-section').style.display = 'none';
+        localStorage.removeItem('gh_my_ticket_id');
+        myTicketId = null;
+      }
+    }
+
+    // --- ОБРАБОТЧИКИ СОБЫТИЙ ---
+
+    // Встать в очередь
+    document.getElementById('queue-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('student-name').value.trim();
+      const studentId = document.getElementById('student-id').value.trim();
+
+      const newTicket = {
+        id: 't_' + Date.now(),
+        name: name,
+        studentId: studentId
+      };
+
+      const queue = getQueue();
+      queue.push(newTicket);
+
+      myTicketId = newTicket.id;
+      localStorage.setItem('gh_my_ticket_id', myTicketId);
+
+      saveQueue(queue);
+      document.getElementById('queue-form').reset();
+    });
+
+    // Покинуть очередь
+    function leaveQueue() {
+      if (!myTicketId) return;
+      let queue = getQueue();
+      queue = queue.filter(item => item.id !== myTicketId);
+      localStorage.removeItem('gh_my_ticket_id');
+      myTicketId = null;
+      saveQueue(queue);
+    }
+
+    // Удалить пользователя из очереди (Админ/Пользователь)
+    function adminRemoveFromQueue(id) {
+      let queue = getQueue();
+      queue = queue.filter(item => item.id !== id);
+      if (myTicketId === id) {
+        localStorage.removeItem('gh_my_ticket_id');
+        myTicketId = null;
+      }
+      saveQueue(queue);
+    }
+
+    // Очистить всю очередь (Админ)
+    function clearAllQueue() {
+      if (confirm('Очистить всю очередь?')) {
+        localStorage.removeItem('gh_my_ticket_id');
+        myTicketId = null;
+        saveQueue([]);
+      }
+    }
+
+    // Изменить статус машинки
+    function setWasherStatus(id, status) {
+      const washers = getWashers();
+      const washer = washers.find(w => w.id === id);
+      if (washer) {
+        washer.status = status;
+        saveWashers(washers);
+      }
+    }
+
+    // Автоматическая синхронизация при изменении данных в другой вкладке
+    window.addEventListener('storage', () => {
+      render();
+    });
+
+    // Первоначальный запуск
+    render();
+  </script>
+</body>
+</html>
